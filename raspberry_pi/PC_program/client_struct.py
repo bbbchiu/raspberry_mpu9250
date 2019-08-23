@@ -19,13 +19,15 @@ right_x = 25 + bound_w
 bottom_y = 25 + bound_h
 line_W = 10
 
+middle_x = 1170
+middle_y = 700
 matrix = np.loadtxt("matrix6.txt", delimiter=',')
 M = cv2.getRotationMatrix2D((weight/2,height/2), 180, 1)
 
 class client:
     th_70 = 0   ###### threshold for 70 degree flir value
     th_100 = 0  ###### threshold for 100 degree flir value
-    t= 0
+    #t= 0
     remain_package_size = 0
     img_binary = b''
     img_ir = img_white
@@ -41,6 +43,9 @@ class client:
     closing_danger_flag = False     ###### close to the danger area
     in_danger_flag = False      ###### the red area more than one third of pic
     in_explosion_flag = False
+    send_save_msg_flag = False
+    send_over_time_flag = False
+    yellow_flag = False
     set_start = False
     fireman_bound_top = 0
     fireman_bound_bottom = 0
@@ -50,6 +55,7 @@ class client:
     explosion_bound_bottom = 0
     explosion_bound_left = 0
     explosion_bound_right = 0
+    draw_count = 0
 # ---------------------------------------------#
     color_set = (0,0,0) # 紅綠燈的燈號
     fire_num = ""
@@ -64,12 +70,38 @@ class client:
     dist_save = 0 # 距離暫存
     bes_data_list = []
     gyro_list = []
+    left_spot_x = 0
+    right_spot_x = 0
+    up_spot_y = 0
+    down_spot_y = 0
+    line_left_spot_x = 0
+    line_right_spot_x = 0
+    line_up_spot_y = 0
+    line_down_spot_y = 0
+    left_thickness = 10
+    right_thickness = 10
+    up_thickness = 10
+    down_thickness = 10
 #------------------------------------------------#
     def __init__(self, num):
+        self.color_set = (0,139,0)
         self.visible_flag = True
         self.first_flag = True
         self.namespace_img = img_white_namespace
+        self.left_spot_x = 5 + (middle_x-5)*(num%2)
+        self.right_spot_x = middle_x + middle_x*(num%2)
+        self.up_spot_y = 5 + (middle_y-5)*(num >= 2)
+        self.down_spot_y = middle_y + (middle_y)*(num >= 2)
+        self.line_left_spot_x = self.left_spot_x
+        self.line_right_spot_x = self.right_spot_x
+        self.line_up_spot_y = self.up_spot_y
+        self.line_down_spot_y = self.down_spot_y
         if(num == 0):
+            self.line_right_spot_x = self.line_right_spot_x - 5
+            self.line_down_spot_y = self.line_down_spot_y - 5
+            self.right_thickness = 5
+            self.down_thickness = 5
+
             self.explosion_bound_top = line_W
             self.explosion_bound_bottom = bound_h - line_W
             self.explosion_bound_left = line_W
@@ -81,6 +113,11 @@ class client:
             self.fireman_bound_right = bound_w-25
             
         elif(num == 1):
+            self.line_left_spot_x = self.line_left_spot_x + 5
+            self.line_down_spot_y = self.line_down_spot_y - 5
+            self.left_thickness = 5
+            self.down_thickness = 5
+            
             self.explosion_bound_top = line_W
             self.explosion_bound_bottom = bound_h - line_W
             self.explosion_bound_left = bound_w 
@@ -94,6 +131,11 @@ class client:
             self.position_x = right_x
             
         elif(num == 2):
+            self.line_right_spot_x = self.line_right_spot_x - 5
+            self.line_up_spot_y = self.line_up_spot_y + 5
+            self.right_thickness = 5
+            self.up_thickness = 5
+
             self.explosion_bound_top = bound_h
             self.explosion_bound_bottom = bound_h * 2 - int(line_W * 1.5)
             self.explosion_bound_left = line_W
@@ -107,6 +149,11 @@ class client:
             self.position_y = bottom_y
             
         elif(num == 3):
+            self.line_left_spot_x = self.line_left_spot_x + 5
+            self.line_up_spot_y = self.line_up_spot_y + 5
+            self.up_thickness = 5
+            self.left_thickness = 5
+
             self.explosion_bound_top = bound_h
             self.explosion_bound_bottom = bound_h * 2 - int(line_W * 1.5)
             self.explosion_bound_left = bound_w
@@ -236,9 +283,18 @@ class client:
                 if(self.in_danger_flag | self.in_explosion_flag):
                     cv2.putText(self.img_combine, "In danger area !", (20,40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 3)
                     self.in_explosion_flag = False
+                    self.draw_count += 1
                 elif(self.closing_danger_flag):
                     cv2.putText(self.img_combine, "Close to danger area", (20,40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 3)
                     self.closing_danger_flag = False
+                    self.draw_count += 1
+                if(self.send_over_time_flag):
+                    cv2.putText(self.img_combine, "You should come out !", (20,(40 + self.draw_count*30)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 3)
+                    self.draw_count += 1
+                if(self.send_save_msg_flag):
+                    cv2.putText(self.img_combine, "You will be saved !", (20,(40 + self.draw_count*30)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 3)
+                    
+                self.draw_count = 0
                 ###### concatenate the img_combine and namespace ######
                 self.img_show = np.concatenate((self.namespace_img, self.img_combine), axis=0)
                 return True
